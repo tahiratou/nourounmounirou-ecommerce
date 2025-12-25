@@ -1,0 +1,38 @@
+services:
+  # Base de données PostgreSQL
+  - type: pserv
+    name: nourounmounirou-db
+    env: postgres
+    plan: free
+    ipAllowList: []
+
+  # Backend Django
+  - type: web
+    name: nourounmounirou-api
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn nourounmounirou.wsgi:application"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nourounmounirou-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        sync: false
+    autoDeploy: false
+
+  # Frontend React (Static Site)
+  - type: web
+    name: nourounmounirou-frontend
+    env: static
+    region: frankfurt
+    plan: free
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: ./frontend/dist
+    autoDeploy: false
