@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
     """Modèle pour les catégories de produits"""
@@ -41,12 +42,8 @@ class Product(models.Model):
         verbose_name='Prix (FCFA)'
     )
     emoji = models.CharField(max_length=10, default='📦', verbose_name='Emoji')
-    image = models.ImageField(
-        upload_to='products/', 
-        null=True, 
-        blank=True,
-        verbose_name='Image'
-    )
+    image = CloudinaryField('image', null=True, blank=True)
+
     is_available = models.BooleanField(default=True, verbose_name='Disponible')
     created_by = models.ForeignKey(
         User, 
