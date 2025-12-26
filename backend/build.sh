@@ -28,3 +28,6 @@ for cat in categories:
 
 print("Build terminé avec succès!")
 EOF
+
+# Créer le superuser
+python manage.py initadmin
