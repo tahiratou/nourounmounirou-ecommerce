@@ -8,6 +8,8 @@ pip install -r requirements.txt
 # Collecte des fichiers statiques
 python manage.py collectstatic --no-input
 
+python manage.py makemigrations
+
 # Application des migrations
 python manage.py migrate
 

@@ -2,7 +2,14 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';;
 
-
+// Configuration axios
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 // Fonction pour récupérer le CSRF token depuis les cookies
 function getCookie(name) {
   let cookieValue = null;
@@ -19,16 +26,9 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Configuration axios
-const api = axios.create({
-  baseURL: API_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
 
-// Intercepteur pour ajouter le CSRF token à chaque requête
+
+// Intercepteur pour ajouter le token CSRF à chaque requête
 api.interceptors.request.use(
   (config) => {
     const csrftoken = getCookie('csrftoken');
@@ -42,12 +42,11 @@ api.interceptors.request.use(
   }
 );
 
-// Intercepteur pour gérer les erreurs
+// Intercepteur pour gérer les erreurs 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Redirection vers login si non authentifié
+    if (error.response && error.response.status === 401) {
       window.location.href = '/login';
     }
     return Promise.reject(error);

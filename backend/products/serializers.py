@@ -33,6 +33,16 @@ class ProductSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
         return super().create(validated_data)
+    
+    def get_image_url(self, obj):
+        """Retourne l'URL complète de l'image Cloudinary"""
+        if obj.image:
+            # Si CloudinaryField
+            if hasattr(obj.image, 'url'):
+                return obj.image.url
+            # Si ImageField avec Cloudinary storage
+            return obj.image.url if obj.image else None
+        return None
 
 
 class ProductListSerializer(serializers.ModelSerializer):
