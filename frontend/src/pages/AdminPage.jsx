@@ -81,33 +81,62 @@ function AdminPage() {
     setFormData(prev => ({ ...prev, image: file }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
+  setSuccess('');
+
+  try {
+    // Forcer l'obtention du CSRF token avant l'upload
+    await authService.getCsrfToken();
     
-    if (!formData.name || !formData.category || !formData.price) {
-      showMessage('Veuillez remplir tous les champs obligatoires', 'error');
-      return;
+    // Petit délai pour s'assurer que le cookie est bien défini
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const formData = new FormData();
+    formData.append('name', formValues.name);
+    formData.append('description', formValues.description);
+    formData.append('price', formValues.price);
+    formData.append('category', formValues.category);
+    formData.append('emoji', formValues.emoji);
+    formData.append('is_available', formValues.is_available);
+    
+    if (formValues.image) {
+      formData.append('image', formValues.image);
     }
 
-    try {
-      await productService.create(formData);
-      showMessage('Produit ajouté avec succès!');
-      setFormData({
-        name: '',
-        category: '',
-        description: '',
-        price: '',
-        emoji: '📦',
-        image: null,
-      });
-      document.getElementById('productImage').value = '';
-      loadData();
-      setActiveTab('products');
-    } catch (error) {
-      console.error('Erreur:', error);
-      showMessage('Erreur lors de l\'ajout du produit', 'error');
+    let response;
+    if (editingProduct) {
+      response = await productService.update(editingProduct.id, formData);
+      setSuccess('Produit modifié avec succès!');
+    } else {
+      response = await productService.create(formData);
+      setSuccess('Produit ajouté avec succès!');
     }
-  };
+
+    // Réinitialiser le formulaire
+    setFormValues({
+      name: '',
+      description: '',
+      price: '',
+      category: '',
+      image: null,
+      emoji: '',
+      is_available: true,
+    });
+    setImagePreview(null);
+    setEditingProduct(null);
+
+    // Recharger les produits
+    await loadProducts();
+    
+    // Changer d'onglet après succès
+    setActiveTab('products');
+  } catch (error) {
+    console.error('Erreur:', error);
+    setError(error.response?.data?.detail || 'Erreur lors de l\'ajout du produit');
+  }
+};
 
   const handleDelete = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce produit?')) {

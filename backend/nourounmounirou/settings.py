@@ -105,6 +105,7 @@ CORS_ALLOWED_ORIGINS = config(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -133,18 +134,20 @@ REST_FRAMEWORK = {
 }
 
 
-# CSRF Configuration
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
     default='http://localhost:5173'
 ).split(',')
 
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = not DEBUG  # True en production (HTTPS), False en dev
-CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # 'None' en production pour cross-origin
-CSRF_USE_SESSIONS = False
 
+# CSRF Configuration
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_SECURE = not DEBUG  # True en production (HTTPS)
+CSRF_COOKIE_HTTPONLY = False  # Important : JS doit pouvoir lire le cookie
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # 'None' pour cross-origin
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_AGE = 31449600  # 1 an
 # Cloudinary Configuration
 import cloudinary
 import cloudinary.uploader
@@ -160,3 +163,9 @@ CLOUDINARY_STORAGE = {
 if not DEBUG:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
+
+
+# Session Configuration
+SESSION_COOKIE_SECURE = not DEBUG  # True en production (HTTPS)
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+SESSION_COOKIE_HTTPONLY = True

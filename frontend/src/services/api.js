@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-// Configuration axios
+// Créer l'instance axios
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -10,7 +10,8 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
-// Fonction pour récupérer le CSRF token depuis les cookies
+
+// Fonction pour obtenir le cookie CSRF
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -25,8 +26,6 @@ function getCookie(name) {
   }
   return cookieValue;
 }
-
-
 
 // Intercepteur pour ajouter le token CSRF à chaque requête
 api.interceptors.request.use(
@@ -45,72 +44,83 @@ api.interceptors.request.use(
 // Intercepteur pour gérer les erreurs 401
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Si erreur 403 et pas déjà retenté
+    if (error.response?.status === 403 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Récupérer un nouveau CSRF token
+        await api.get('/auth/csrf/');
+        
+        // Réessayer la requête avec le nouveau token
+        const csrftoken = getCookie('csrftoken');
+        if (csrftoken) {
+          originalRequest.headers['X-CSRFToken'] = csrftoken;
+        }
+        
+        return api(originalRequest);
+      } catch (retryError) {
+        return Promise.reject(retryError);
+      }
+    }
+    
+    // Si erreur 401, rediriger vers login
+    if (error.response?.status === 401) {
       window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );
 
-// Authentication
+// Services API
 export const authService = {
   login: (username, password) => api.post('/auth/login/', { username, password }),
   logout: () => api.post('/auth/logout/'),
   getUser: () => api.get('/auth/user/'),
-  changePassword: (oldPassword, newPassword) => 
-    api.post('/auth/change-password/', { 
-      old_password: oldPassword, 
-      new_password: newPassword 
-    }),
   getCsrfToken: () => api.get('/auth/csrf/'),
 };
 
-// Products
 export const productService = {
-  getAll: (params = {}) => api.get('/products/products/', { params }),
-  getById: (id) => api.get(`/products/products/${id}/`),
-  create: (data) => {
-    const formData = new FormData();
-    Object.keys(data).forEach(key => {
-      if (data[key] !== null && data[key] !== undefined) {
-        formData.append(key, data[key]);
-      }
-    });
+  getAll: () => api.get('/products/products/'),
+  
+  create: async (formData) => {
+    // S'assurer d'avoir le token CSRF
+    const csrftoken = getCookie('csrftoken');
+    
     return api.post('/products/products/', formData, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
-        'X-CSRFToken': getCookie('csrftoken')
+        'X-CSRFToken': csrftoken,
       },
     });
   },
-  update: (id, data) => {
-    const formData = new FormData();
-    Object.keys(data).forEach(key => {
-      if (data[key] !== null && data[key] !== undefined) {
-        formData.append(key, data[key]);
-      }
-    });
+  
+  update: async (id, formData) => {
+    // S'assurer d'avoir le token CSRF
+    const csrftoken = getCookie('csrftoken');
+    
     return api.put(`/products/products/${id}/`, formData, {
-      headers: { 
+      headers: {
         'Content-Type': 'multipart/form-data',
-        'X-CSRFToken': getCookie('csrftoken')
+        'X-CSRFToken': csrftoken,
       },
     });
   },
+  
   delete: (id) => api.delete(`/products/products/${id}/`),
-  byCategory: (category) => api.get('/products/products/by_category/', { params: { category } }),
 };
 
-// Categories
 export const categoryService = {
   getAll: () => api.get('/products/categories/'),
 };
 
-// Settings
 export const settingsService = {
   get: () => api.get('/products/settings/'),
-  update: (data) => api.put('/products/settings/1/', data),
+  update: (id, data) => api.put(`/products/settings/${id}/`, data),
 };
 
 export default api;
