@@ -1,142 +1,148 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  LogOut, Package, Plus, Settings as SettingsIcon, 
-  Trash2, Home, Edit, Upload, Store
-} from 'lucide-react';
+import { Store, Package, Plus, Settings as SettingsIcon, Trash2, Edit, LogOut } from 'lucide-react';
+import { productService, categoryService, settingsService, authService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { productService, categoryService, settingsService } from '../services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
 
 function AdminPage() {
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
+  
+  // States pour les données
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState(null);
-
-  // Form states
-  const [formData, setFormData] = useState({
+  
+  // States pour les messages d'erreur et succès
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  
+  // States pour l'édition
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  
+  // State pour le formulaire
+  const [formValues, setFormValues] = useState({
     name: '',
-    category: '',
     description: '',
     price: '',
-    emoji: '📦',
+    category: '',
     image: null,
+    emoji: '',
+    is_available: true,
   });
 
+  // useEffect pour charger les données
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      const [productsRes, categoriesRes, settingsRes] = await Promise.all([
-        productService.getAll(),
-        categoryService.getAll(),
-        settingsService.get(),
-      ]);
-      setProducts(productsRes.data.results || productsRes.data);
-      setCategories(categoriesRes.data.results || categoriesRes.data);
-      setSettings(settingsRes.data);
+      await loadProducts();
+      await loadCategories();
+      await loadSettings();
     } catch (error) {
-      console.error('Erreur:', error);
-      showMessage('Erreur lors du chargement des données', 'error');
+      console.error('Erreur lors du chargement:', error);
+      setError('Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
   };
 
-  const showMessage = (text, type = 'success') => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 4000);
-  };
-
-  const handleLogout = async () => {
+  const loadProducts = async () => {
     try {
-      await logout();
-      navigate('/');
+      const response = await productService.getAll();
+      setProducts(response.data.results || response.data);
     } catch (error) {
-      console.error('Erreur de déconnexion:', error);
+      console.error('Erreur lors du chargement des produits:', error);
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const loadCategories = async () => {
+    try {
+      const response = await categoryService.getAll();
+      setCategories(response.data.results || response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des catégories:', error);
+    }
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    setFormData(prev => ({ ...prev, image: file }));
+  const loadSettings = async () => {
+    try {
+      const response = await settingsService.get();
+      setSettings(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des paramètres:', error);
+    }
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setSuccess('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
 
-  try {
-    // Forcer l'obtention du CSRF token avant l'upload
-    await authService.getCsrfToken();
-    
-    // Petit délai pour s'assurer que le cookie est bien défini
-    await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+      // Forcer l'obtention du CSRF token avant l'upload
+      await authService.getCsrfToken();
+      
+      // Petit délai pour s'assurer que le cookie est bien défini
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-    const formData = new FormData();
-    formData.append('name', formValues.name);
-    formData.append('description', formValues.description);
-    formData.append('price', formValues.price);
-    formData.append('category', formValues.category);
-    formData.append('emoji', formValues.emoji);
-    formData.append('is_available', formValues.is_available);
-    
-    if (formValues.image) {
-      formData.append('image', formValues.image);
+      const formData = new FormData();
+      formData.append('name', formValues.name);
+      formData.append('description', formValues.description);
+      formData.append('price', formValues.price);
+      formData.append('category', formValues.category);
+      formData.append('emoji', formValues.emoji);
+      formData.append('is_available', formValues.is_available);
+      
+      if (formValues.image) {
+        formData.append('image', formValues.image);
+      }
+
+      let response;
+      if (editingProduct) {
+        response = await productService.update(editingProduct.id, formData);
+        setSuccess('Produit modifié avec succès!');
+      } else {
+        response = await productService.create(formData);
+        setSuccess('Produit ajouté avec succès!');
+      }
+
+      // Réinitialiser le formulaire
+      setFormValues({
+        name: '',
+        description: '',
+        price: '',
+        category: '',
+        image: null,
+        emoji: '',
+        is_available: true,
+      });
+      setImagePreview(null);
+      setEditingProduct(null);
+
+      // Recharger les produits
+      await loadProducts();
+      
+      // Changer d'onglet après succès
+      setActiveTab('products');
+    } catch (error) {
+      console.error('Erreur:', error);
+      setError(error.response?.data?.detail || 'Erreur lors de l\'ajout du produit');
     }
+  };
 
-    let response;
-    if (editingProduct) {
-      response = await productService.update(editingProduct.id, formData);
-      setSuccess('Produit modifié avec succès!');
-    } else {
-      response = await productService.create(formData);
-      setSuccess('Produit ajouté avec succès!');
-    }
-
-    // Réinitialiser le formulaire
-    setFormValues({
-      name: '',
-      description: '',
-      price: '',
-      category: '',
-      image: null,
-      emoji: '',
-      is_available: true,
-    });
-    setImagePreview(null);
-    setEditingProduct(null);
-
-    // Recharger les produits
-    await loadProducts();
-    
-    // Changer d'onglet après succès
-    setActiveTab('products');
-  } catch (error) {
-    console.error('Erreur:', error);
-    setError(error.response?.data?.detail || 'Erreur lors de l\'ajout du produit');
-  }
-};
 
   const handleDelete = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce produit?')) {

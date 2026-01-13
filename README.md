@@ -1,6 +1,6 @@
 # 🛍️ NourounMounirou - Site E-commerce
 
-Site e-commerce complet avec React/Vite (frontend) et Django (backend) pour permettre à votre maman de gérer facilement sa boutique en ligne.
+Site e-commerce complet avec React/Vite (frontend) et Django (backend) une boutique en ligne.
 
 ## 📋 Technologies utilisées
 
