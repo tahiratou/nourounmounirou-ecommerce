@@ -9,6 +9,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt  # ← Ajoutez cette ligne
 def login_view(request):
     """
     Authentifier un utilisateur
