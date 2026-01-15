@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Package, Plus, Settings as SettingsIcon, Trash2, Edit, LogOut } from 'lucide-react';
+import { Store, Package, Plus, Settings as SettingsIcon, Trash2, Edit, LogOut, Home, Upload } from 'lucide-react';
 import { productService, categoryService, settingsService, authService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,27 +10,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 function AdminPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  
-  // States pour les données
+  const { logout, user } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion', error);
+    }
+  };
+
+  // States
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // States pour les messages d'erreur et succès
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
-  // States pour l'édition
   const [editingProduct, setEditingProduct] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  
-  // State pour le formulaire
+
   const [formValues, setFormValues] = useState({
     name: '',
     description: '',
@@ -41,7 +46,6 @@ function AdminPage() {
     is_available: true,
   });
 
-  // useEffect pour charger les données
   useEffect(() => {
     loadData();
   }, []);
@@ -86,16 +90,38 @@ function AdminPage() {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormValues(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormValues(prev => ({
+        ...prev,
+        image: file
+      }));
+      
+      // Prévisualisation
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     try {
-      // Forcer l'obtention du CSRF token avant l'upload
       await authService.getCsrfToken();
-      
-      // Petit délai pour s'assurer que le cookie est bien défini
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const formData = new FormData();
@@ -105,21 +131,20 @@ function AdminPage() {
       formData.append('category', formValues.category);
       formData.append('emoji', formValues.emoji);
       formData.append('is_available', formValues.is_available);
-      
+
       if (formValues.image) {
         formData.append('image', formValues.image);
       }
 
-      let response;
       if (editingProduct) {
-        response = await productService.update(editingProduct.id, formData);
+        await productService.update(editingProduct.id, formData);
         setSuccess('Produit modifié avec succès!');
       } else {
-        response = await productService.create(formData);
+        await productService.create(formData);
         setSuccess('Produit ajouté avec succès!');
       }
 
-      // Réinitialiser le formulaire
+      // Réinitialiser
       setFormValues({
         name: '',
         description: '',
@@ -132,17 +157,13 @@ function AdminPage() {
       setImagePreview(null);
       setEditingProduct(null);
 
-      // Recharger les produits
       await loadProducts();
-      
-      // Changer d'onglet après succès
       setActiveTab('products');
     } catch (error) {
       console.error('Erreur:', error);
       setError(error.response?.data?.detail || 'Erreur lors de l\'ajout du produit');
     }
   };
-
 
   const handleDelete = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce produit?')) {
@@ -151,26 +172,27 @@ function AdminPage() {
 
     try {
       await productService.delete(id);
-      showMessage('Produit supprimé avec succès');
-      loadData();
+      setSuccess('Produit supprimé avec succès');
+      await loadProducts();
     } catch (error) {
       console.error('Erreur:', error);
-      showMessage('Erreur lors de la suppression', 'error');
+      setError('Erreur lors de la suppression');
     }
   };
 
   const handleSettingsUpdate = async (e) => {
     e.preventDefault();
-    const formElement = e.target;
-    const whatsappNumber = formElement.whatsapp_number.value;
+    const whatsappNumber = e.target.whatsapp_number.value;
 
     try {
-      await settingsService.update({ whatsapp_number: whatsappNumber });
-      showMessage('Paramètres mis à jour avec succès');
-      loadData();
+      if (settings && settings.id) {
+        await settingsService.update(settings.id, { whatsapp_number: whatsappNumber });
+        setSuccess('Paramètres mis à jour avec succès');
+        await loadSettings();
+      }
     } catch (error) {
       console.error('Erreur:', error);
-      showMessage('Erreur lors de la mise à jour', 'error');
+      setError('Erreur lors de la mise à jour');
     }
   };
 
@@ -191,7 +213,7 @@ function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-red-50">
-      {/* Header Admin */}
+      {/* Header */}
       <header className="bg-gradient-to-r from-amber-500 via-red-900 to-red-950 text-white shadow-xl">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -204,9 +226,9 @@ function AdminPage() {
                 <p className="text-amber-200">Bienvenue, {user?.username}</p>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
-              <Button 
+              <Button
                 variant="secondary"
                 onClick={() => navigate('/')}
                 className="bg-white text-red-900 hover:bg-amber-100"
@@ -214,10 +236,7 @@ function AdminPage() {
                 <Home className="mr-2 h-5 w-5" />
                 Boutique
               </Button>
-              <Button 
-                variant="destructive"
-                onClick={handleLogout}
-              >
+              <Button variant="destructive" onClick={handleLogout}>
                 <LogOut className="mr-2 h-5 w-5" />
                 Déconnexion
               </Button>
@@ -228,30 +247,35 @@ function AdminPage() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Messages */}
-        {message && (
-          <Alert variant={message.type === 'error' ? 'destructive' : 'default'} className="mb-6">
-            <AlertDescription>{message.text}</AlertDescription>
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mb-6 bg-green-50 border-green-200">
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
           </Alert>
         )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid h-auto bg-white border-2 p-1">
-            <TabsTrigger 
-              value="products" 
+            <TabsTrigger
+              value="products"
               className="data-[state=active]:bg-red-900 data-[state=active]:text-white py-3 px-6"
             >
               <Package className="mr-2 h-5 w-5" />
               Mes Produits ({products.length})
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="add"
               className="data-[state=active]:bg-red-900 data-[state=active]:text-white py-3 px-6"
             >
               <Plus className="mr-2 h-5 w-5" />
               Ajouter
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="settings"
               className="data-[state=active]:bg-red-900 data-[state=active]:text-white py-3 px-6"
             >
@@ -279,7 +303,7 @@ function AdminPage() {
                       <h3 className="text-2xl font-bold text-gray-900">Aucun produit</h3>
                       <p className="text-gray-600">Commencez par ajouter votre premier produit</p>
                     </div>
-                    <Button 
+                    <Button
                       onClick={() => setActiveTab('add')}
                       className="bg-red-900 hover:bg-red-800"
                       size="lg"
@@ -301,7 +325,7 @@ function AdminPage() {
                                 <div className="text-4xl">{product.emoji}</div>
                               )}
                             </div>
-                            
+
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-xl font-bold text-gray-900">{product.name}</h3>
@@ -316,8 +340,8 @@ function AdminPage() {
                                 {formatPrice(product.price)} FCFA
                               </p>
                             </div>
-                            
-                            <Button 
+
+                            <Button
                               variant="destructive"
                               size="icon"
                               onClick={() => handleDelete(product.id)}
@@ -335,7 +359,7 @@ function AdminPage() {
             </Card>
           </TabsContent>
 
-          {/* Onglet Ajouter - Suite dans le prochain fichier */}
+          {/* Onglet Ajouter */}
           <TabsContent value="add" className="space-y-6">
             <Card>
               <CardHeader>
@@ -349,7 +373,7 @@ function AdminPage() {
                     <Input
                       type="text"
                       name="name"
-                      value={formData.name}
+                      value={formValues.name}
                       onChange={handleInputChange}
                       placeholder="Ex: Assiette en céramique"
                       required
@@ -361,7 +385,7 @@ function AdminPage() {
                     <label className="text-sm font-semibold">Catégorie *</label>
                     <select
                       name="category"
-                      value={formData.category}
+                      value={formValues.category}
                       onChange={handleInputChange}
                       required
                       className="w-full h-12 px-3 border-2 border-gray-300 rounded-md focus:border-red-900 focus:outline-none"
@@ -379,7 +403,7 @@ function AdminPage() {
                     <label className="text-sm font-semibold">Description</label>
                     <Textarea
                       name="description"
-                      value={formData.description}
+                      value={formValues.description}
                       onChange={handleInputChange}
                       placeholder="Décrivez votre produit..."
                       rows={4}
@@ -392,7 +416,7 @@ function AdminPage() {
                     <Input
                       type="number"
                       name="price"
-                      value={formData.price}
+                      value={formValues.price}
                       onChange={handleInputChange}
                       placeholder="Ex: 5000"
                       min="0"
@@ -407,7 +431,7 @@ function AdminPage() {
                     <Input
                       type="text"
                       name="emoji"
-                      value={formData.emoji}
+                      value={formValues.emoji}
                       onChange={handleInputChange}
                       placeholder="Ex: 🍽️"
                       maxLength="10"
@@ -422,18 +446,20 @@ function AdminPage() {
                     </label>
                     <Input
                       type="file"
-                      id="productImage"
                       accept="image/*"
                       onChange={handleImageChange}
                       className="h-12 cursor-pointer"
                     />
+                    {imagePreview && (
+                      <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover rounded-lg mt-2" />
+                    )}
                     <p className="text-sm text-gray-500">Format: JPG, PNG, GIF (max 5MB)</p>
                   </div>
 
                   <Separator />
 
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full h-14 text-lg bg-red-900 hover:bg-red-800"
                   >
                     <Plus className="mr-2 h-5 w-5" />
@@ -471,9 +497,9 @@ function AdminPage() {
                       Exemple: 22890123456 pour un numéro du Bénin
                     </p>
                   </div>
-                  
-                  <Button 
-                    type="submit" 
+
+                  <Button
+                    type="submit"
                     className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
                   >
                     Enregistrer les paramètres
